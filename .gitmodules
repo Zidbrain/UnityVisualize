@@ -1,0 +1,3 @@
+[submodule "PedSimServer"]
+	path = PedSimServer
+	url = https://github.com/Zidbrain/PedSimServer
