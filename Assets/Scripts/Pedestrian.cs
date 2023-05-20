@@ -19,27 +19,32 @@ public class Pedestrian : DrawableAgent
     private float _effectiveSpeed;
 
     private float? _lastTime;
-    public PathSegment CurrentSegment { get; private set; }
+    public PathSegmentDescription CurrentSegmentDescription { get; private set; }
     private float _startDistance;
-    private Dictionary<PathSegment, float> _cumulativeDistanceAtEachSegment;
-    private Dictionary<PathSegment, PathSegment> _nextSegment;
+    private Dictionary<PathSegmentDescription, float> _cumulativeDistanceAtEachSegment;
+    private Dictionary<PathSegmentDescription, PathSegmentDescription> _nextSegment;
 
     private static int s_no = 0;
 
     private PedestrianPopulation _population;
 
+    private bool _isActive = true;
+    private bool _isStopped = false;
+
     public bool IsSlowed { get; private set; }
 
-    public static Pedestrian Create(GameObject gameObject, Path path, float speed, PedestrianPopulation population)
+    public static Pedestrian Create(GameObject gameObject, Func<GameObject, Path> getPath, float speed, PedestrianPopulation population)
     {
         var pd = new GameObject($"Pedestrian {s_no}", typeof(Pedestrian));
         s_no++;
         pd.transform.SetParent(gameObject.transform);
         var ret = pd.GetComponent<Pedestrian>();
-        if (path.isReversed ^ path.traverseReversed.Contains(path.Segments[0]))
-            ret.Position = path.Segments[0].PathCreator.path.GetPointAtDistance(path.Segments[0].PathCreator.path.length, EndOfPathInstruction.Stop);
+        var path = getPath(pd);
+        var first = path.SegmentsDescriptions[0];
+        if (path.isReversed ^ first.traverseReversed)
+            ret.Position = first.segment.PathCreator.path.GetPointAtDistance(first.segment.PathCreator.path.length, EndOfPathInstruction.Stop);
         else
-            ret.Position = path.Segments[0].PathCreator.path.GetPointAtDistance(0f);
+            ret.Position = first.segment.PathCreator.path.GetPointAtDistance(0f);
 
         ret.Path = path;
         ret.Speed = speed;
@@ -55,19 +60,19 @@ public class Pedestrian : DrawableAgent
 
     private void Start()
     {
-        _cumulativeDistanceAtEachSegment = new Dictionary<PathSegment, float>();
-        _nextSegment = new Dictionary<PathSegment, PathSegment>();
-        CurrentSegment = Path.Segments[0];
-        CurrentSegment.Statistics.pedestrianCount++;
+        _cumulativeDistanceAtEachSegment = new Dictionary<PathSegmentDescription, float>();
+        _nextSegment = new Dictionary<PathSegmentDescription, PathSegmentDescription>();
+        CurrentSegmentDescription = Path.SegmentsDescriptions[0];
+        CurrentSegmentDescription.segment.Statistics.pedestrianCount++;
         _effectiveSpeed = Speed;
 
         var cumulativeDistance = 0f;
-        for (int i = 0; i < Path.Segments.Count; i++)
+        for (int i = 0; i < Path.SegmentsDescriptions.Count; i++)
         {
-            var segment = Path.Segments[i];
-            if (i + 1 < Path.Segments.Count) _nextSegment[segment] = Path.Segments[i + 1];
+            var segment = Path.SegmentsDescriptions[i];
+            if (i + 1 < Path.SegmentsDescriptions.Count) _nextSegment[segment] = Path.SegmentsDescriptions[i + 1];
 
-            cumulativeDistance += segment.PathCreator.path.length;
+            cumulativeDistance += segment.segment.PathCreator.path.length;
             _cumulativeDistanceAtEachSegment[segment] = cumulativeDistance;
         }
     }
@@ -81,46 +86,56 @@ public class Pedestrian : DrawableAgent
 
     public override bool UpdateAgent(float modelTime)
     {
+        if (!_isActive) return true;
+        if (_isStopped) return false;
+
         _lastTime ??= modelTime;
         var delta = modelTime - _lastTime.Value;
         _distanceTravelled += _effectiveSpeed * delta;
         _lastTime = modelTime;
 
-        if (_distanceTravelled > _cumulativeDistanceAtEachSegment[CurrentSegment])
+        if (_distanceTravelled > _cumulativeDistanceAtEachSegment[CurrentSegmentDescription])
         {
-            if (!_nextSegment.TryGetValue(CurrentSegment, out var nextSegment))
+            if (!_nextSegment.TryGetValue(CurrentSegmentDescription, out var nextSegment))
             {
-                CurrentSegment.Statistics.pedestrianCount--;
+                CurrentSegmentDescription.segment.Statistics.pedestrianCount--;
                 Destroyed?.Invoke(this, EventArgs.Empty);
-                Destroy(gameObject);
-                return true;
-            }
-            var stat = CurrentSegment.Statistics;
 
-            if (nextSegment.TrafficLight != null && !nextSegment.TrafficLight.IsOpen)
+                Path.to.Enqueue(() =>
+                {
+                    _isActive = false;
+                    Destroy(gameObject);
+                });
+
+                _isStopped = true;
+                return false;
+            }
+            var stat = CurrentSegmentDescription.segment.Statistics;
+
+            if (nextSegment.segment.TrafficLight != null && !nextSegment.segment.TrafficLight.IsOpen)
             {
                 stat.AppendTrafficLightWaitingTime(this, delta);
-                _distanceTravelled = _cumulativeDistanceAtEachSegment[CurrentSegment];
+                _distanceTravelled = _cumulativeDistanceAtEachSegment[CurrentSegmentDescription];
             }
             else
             {
-                CurrentSegment.Statistics.pedestrianCount--;
-                CurrentSegment.Statistics.RemovePedestrianFromTrackingWaitingTime(this, EventArgs.Empty);
-                _startDistance = _cumulativeDistanceAtEachSegment[CurrentSegment];
-                CurrentSegment = nextSegment;
-                CurrentSegment.Statistics.pedestrianCount++;
+                CurrentSegmentDescription.segment.Statistics.pedestrianCount--;
+                CurrentSegmentDescription.segment.Statistics.RemovePedestrianFromTrackingWaitingTime(this, EventArgs.Empty);
+                _startDistance = _cumulativeDistanceAtEachSegment[CurrentSegmentDescription];
+                CurrentSegmentDescription = nextSegment;
+                CurrentSegmentDescription.segment.Statistics.pedestrianCount++;
             }
-            if (nextSegment.TrafficLight != null && nextSegment.TrafficLight.IsOpen)
+            if (nextSegment.segment.TrafficLight != null && nextSegment.segment.TrafficLight.IsOpen)
                 stat.AppendTrafficLightWaitingTime(this, 0f);
         }
 
         float distance;
-        if (Path.isReversed ^ Path.traverseReversed.Contains(CurrentSegment))
-            distance = _startDistance + CurrentSegment.PathCreator.path.length - _distanceTravelled;
+        if (Path.isReversed ^ CurrentSegmentDescription.traverseReversed)
+            distance = _startDistance + CurrentSegmentDescription.segment.PathCreator.path.length - _distanceTravelled;
         else
             distance = _distanceTravelled - _startDistance;
 
-        Position = CurrentSegment.PathCreator.path.GetPointAtDistance(distance, EndOfPathInstruction.Stop);
+        Position = CurrentSegmentDescription.segment.PathCreator.path.GetPointAtDistance(distance, EndOfPathInstruction.Stop);
 
         var count = 0;
         foreach (var agent in _population.Agents)

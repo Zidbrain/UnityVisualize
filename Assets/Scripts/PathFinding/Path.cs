@@ -9,20 +9,34 @@ namespace Assets.Scripts.PathFinding
 {
     public class Path : MonoBehaviour
     {
-        public List<PathSegment> Segments = new List<PathSegment>();
+        public List<PathSegmentDescription> SegmentsDescriptions = new List<PathSegmentDescription>();
 
         public bool isReversed;
-        public List<PathSegment> traverseReversed = new List<PathSegment>();
+
+        public Node from, to;
 
         private void Start()
         {
-            if (Segments.Count == 0)
-                Segments = GetComponentsInChildren<PathSegment>()
+            if (SegmentsDescriptions.Count == 0)
+                SegmentsDescriptions = GetComponentsInChildren<PathSegment>().Select(x => new PathSegmentDescription(x, false))
                     .ToList();
         }
 
-        public float length => Segments.Sum(s => s.PathCreator.path.length);
+        public float length => SegmentsDescriptions.Sum(s => s.segment.PathCreator.path.length);
 
-        public void Add(IEnumerable<PathSegment> segments) => Segments.AddRange(segments);
+        public void Add(IEnumerable<PathSegmentDescription> descriptions) => SegmentsDescriptions.AddRange(descriptions);
+    }
+
+    [Serializable]
+    public class PathSegmentDescription
+    {
+        public PathSegment segment;
+        public bool traverseReversed;
+
+        public PathSegmentDescription(PathSegment segment, bool traverseReversed)
+        {
+            this.segment = segment;
+            this.traverseReversed = traverseReversed;
+        }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Assets.Scripts;
 using Assets.Scripts.PathFinding;
 using UnityEngine;
@@ -124,13 +125,29 @@ public class PathSegmentStatistics : MonoBehaviour
         }
     }
 
+    private string GetStatistics()
+    {
+        var builder = new StringBuilder();
+        builder.Append($"N: {pedestrianCount}\n");
+        builder.Append($"K: {Busyness}");
+
+        if (TrafficLightWaitingTime != 0)
+        {
+            builder.Append($"\nQTavg: {TrafficLightWaitingTime * 60}\n" +
+                $"QLavg: {TrafficLightQueueLength}\n" +
+                $"QL: {CurrentQueueLength}");
+        }
+
+        return builder.ToString();
+    }
+
     // Update is called once per frame
     void Update()
     {
         _isSegmentBusy = false;
         foreach (var ped in pedestrianPopulation.Agents)
         {
-            if (ped.CurrentSegment == pathSegment && ped.IsSlowed)
+            if (ped.CurrentSegmentDescription?.segment == pathSegment && ped.IsSlowed)
             {
                 _isSegmentBusy = true;
                 break;
@@ -151,7 +168,7 @@ public class PathSegmentStatistics : MonoBehaviour
         var ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
         if (Physics.Raycast(ray, out var hitInfo) && hitInfo.collider == meshCollider)
         {
-            uiBase.AddStatisticsTracking(this, hitInfo.point + new Vector3(0f, 20f, 0f));
+            uiBase.AddStatisticsTracking(this, hitInfo.point + new Vector3(0f, 20f, 0f), GetStatistics);
             lineRenderer.material.color = Color.black;
 
             if (Mouse.current.leftButton.wasReleasedThisFrame)

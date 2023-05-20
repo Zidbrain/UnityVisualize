@@ -121,5 +121,5 @@ public class ScheduleRecord
     public string to;
     public float fromTime;
     public float toTime;
-    public int amount;
+    public float rate;
 }

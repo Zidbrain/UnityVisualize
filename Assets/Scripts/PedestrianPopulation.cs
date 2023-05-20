@@ -6,7 +6,8 @@ using Assets.Scripts.Jobs;
 using Assets.Scripts.Modeling;
 using Assets.Scripts.PathFinding;
 using UnityEngine;
-
+using UnityEngine.UIElements;
+using UnityEngine.WSA;
 using R = UnityEngine.Random;
 
 namespace Assets.Scripts
@@ -20,21 +21,19 @@ namespace Assets.Scripts
 
         public Schedule schedule;
 
-        private List<(float time, string from, string to)> _addTimes = new List<(float time, string from, string to)>();
-        private int _startIndex;
+        private List<(PoissonFlow flow, float startTime, float endTime)> _flows = new List<(PoissonFlow, float, float)>();
 
         private void AddAgentsStrategy()
         {
 
             foreach (var rec in schedule.records)
             {
-                for (int i = 0; i < rec.amount; i++)
+                var capture = rec;
+                _flows.Add((new PoissonFlow(rec.rate, time =>
                 {
-                    _addTimes.Add((R.Range(rec.fromTime, rec.toTime), rec.from, rec.to));
-                }
+                    AddPedestrian(_nodes[capture.from], _nodes[capture.to]);
+                }), rec.fromTime, rec.toTime));
             }
-
-            _addTimes = _addTimes.OrderBy(x => x.time).ToList();
         }
 
         public void Init()
@@ -42,26 +41,15 @@ namespace Assets.Scripts
             AddAgentsStrategy();
         }
 
-        private Path GetPath(Node start, Node end)
+        private void AddPedestrian(Node start, Node end)
         {
-            var donePath = GameObject.Find($"{start.name}-{end.name}");
-            if (donePath != null)
-            {
-                return donePath.GetComponent<Path>();
-            }
-            donePath = GameObject.Find($"{end.name}-{start.name}");
-            if (donePath != null)
-            {
-                var go1 = new GameObject($"{start.name}-{end.name}", typeof(Path));
-                go1.transform.SetParent(gameObject.transform);
-                var res = go1.GetComponent<Path>();
-                var source = donePath.GetComponent<Path>();
-                res.Add(source.Segments.AsEnumerable().Reverse().ToList());
-                res.traverseReversed.AddRange(source.traverseReversed);
-                res.isReversed = true;
-                return res;
-            }
+            var speed = R.Range(4, 7) / 60f * 1000f;
+            var pedestrian = Pedestrian.Create(gameObject, go => GetPath(start, end, go), speed, this);
+            Agents.Add(pedestrian);
+        }
 
+        private Path GetPath(Node start, Node end, GameObject attachTo)
+        {
             var path = new List<Node>();
             if (start == end) return null;
 
@@ -113,17 +101,18 @@ namespace Assets.Scripts
                 }
             }
 
-            var go = new GameObject($"{start.name}-{end.name}", typeof(Path));
-            go.transform.SetParent(gameObject.transform);
-            var result = go.GetComponent<Path>();
+            // var go = new GameObject($"{start.name}-{end.name}", typeof(Path));
+            //   go.transform.SetParent(gameObject.transform);
+            var result = attachTo.AddComponent<Path>();
+            result.from = start;
+            result.to = end;
             for (var i = 0; i < path.Count - 1; i++)
             {
                 var connection = path[i].GetConnectionWith(path[i + 1]);
-                IEnumerable<PathSegment> adding = connection.path.Segments;
+                IEnumerable<PathSegmentDescription> adding = connection.path.SegmentsDescriptions;
                 if (connection.reversePath)
                 {
-                    adding = adding.Reverse().ToList();
-                    result.traverseReversed.AddRange(adding);
+                    adding = adding.Reverse().Select(x => new PathSegmentDescription(x.segment, !x.traverseReversed)).ToList();
                 }
                 else
                 {
@@ -156,59 +145,18 @@ namespace Assets.Scripts
             base.Start();
         }
 
-        private Job _job;
         public override bool UpdateAgent(float modelTime)
         {
-            //void AddPedestrian()
-            //{
-            //    var speed = R.Range(4, 7) / 60f * 1000f;
-            //    var destinationChance = R.value;
-            //    var start = "BMSTU";
-            //    string destination = "ULK";
-            //    if (destinationChance <= 1f / 4f)
-            //        destination = "Baumanskaya";
-            //    else if (destinationChance <= 2f / 4f)
-            //        destination = "Energo";
-            //    else if (destinationChance <= 3f / 4f)
-            //        destination = "ULK";
-            //    else
-            //    {
-            //        start = "Baumanskaya";
-            //        destination = "Energo";
-            //    }
-            //    for (int i = 0; i < R.Range(1, 7); i++)
-            //    {
-            //        var pedestrian = Pedestrian.Create(gameObject, GetPath(_nodes[start], _nodes[destination]), speed, this);
-            //        Agents.Add(pedestrian);
-            //    }
-            //}
-
-            //var waitTime = 1f / (Math.Pow(Math.Cos(Math.PI * modelTime / 90f), 2d) * 30d + 2f);
-
-            //_job ??= Job.Wait(modelTime, (float)waitTime, _ =>
-            //    {
-            //        AddPedestrian();
-            //        _job = null;
-            //    }).Start();
-
             var upd = base.UpdateAgent(modelTime);
 
-            for (int i = _startIndex; i < _addTimes.Count; i++)
+            foreach ((var flow, var startTime, var endTime) in _flows)
             {
-                var rec = _addTimes[i];
-                if (modelTime >= rec.time)
-                {
-                    var toAdd = 1;
-                    var speed = R.Range(4, 7) / 60f * 1000f;
-                    for (int j=0; j< toAdd; j++)
-                    {
-                        var pedestrian = Pedestrian.Create(gameObject, GetPath(_nodes[rec.from], _nodes[rec.to]), speed, this);
-                        Agents.Add(pedestrian);
-                    }
-                    _startIndex = i + 1;
-                }
-                else
-                   break;
+                if (modelTime >= startTime && modelTime <= endTime) 
+                    flow.Start(startTime);
+                else 
+                    flow.Stop();
+
+                flow.UpdateAgent(modelTime);
             }
 
             var magnitude = new int[100];

@@ -8,11 +8,13 @@ using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
 using UnityEngine.Video;
 using System.Text;
+using System;
+using MathNet.Numerics.Statistics;
 
 [RequireComponent(typeof(Canvas))]
 public class UIBase : MonoBehaviour
 {
-    private class StatisticsUI
+    public class StatisticsUI
     {
         public GameObject go;
         public RectTransform transform;
@@ -20,12 +22,36 @@ public class UIBase : MonoBehaviour
         public bool isLocked;
         public Vector3 worldPosition;
 
-        public StatisticsUI(GameObject basedOn, Vector3 worldPosition)
+        public Func<string> GetText { get; }
+
+        private static int _id;
+
+        public StatisticsUI(GameObject basedOn, Vector3 worldPosition, Func<string> getText)
         {
             transform = basedOn.GetComponent<RectTransform>();
             text = basedOn.GetComponent<TextMeshProUGUI>();
             go = basedOn;
             this.worldPosition = worldPosition;
+            GetText = getText;
+        }
+
+        public static StatisticsUI Create(GameObject parent, Vector3 worldPoint, Func<string> getText)
+        {
+            var go = new GameObject(_id.ToString(), typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            go.transform.SetParent(parent.transform, false);
+            var ui = new StatisticsUI(go, worldPoint, getText);
+            var tf = ui.transform;
+            tf.pivot = new Vector2(0.5f, 0f);
+            tf.anchorMin = Vector2.zero;
+            tf.anchorMax = Vector2.zero;
+            tf.sizeDelta = new Vector2(600, 300);
+            ui.text.alignment = TextAlignmentOptions.Bottom;
+            ui.text.outlineColor = new Color32(0, 0, 0, 255);
+            ui.text.outlineWidth = 0.2f;
+            ui.text.fontSize = 22f;
+            _id++;
+
+            return ui;
         }
     }
 
@@ -33,32 +59,15 @@ public class UIBase : MonoBehaviour
     public TextMeshProUGUI modelTime;
     public TextMeshProUGUI modelSpeed;
 
-    private Dictionary<PathSegmentStatistics, StatisticsUI> _statistics;
-    private int _id;
+    private Dictionary<object, StatisticsUI> _statistics;
 
     private Canvas _canvas;
-
-    private string GetStatistics(PathSegmentStatistics stats)
-    {
-        var builder = new StringBuilder();
-        builder.Append($"N: {stats.pedestrianCount}\n");
-        builder.Append($"K: {stats.Busyness}");
-
-        if (stats.TrafficLightWaitingTime != 0)
-        {
-            builder.Append($"\nLtavg: {stats.TrafficLightWaitingTime * 60}\n" +
-                $"Lavg: {stats.TrafficLightQueueLength}\n" +
-                $"L: {stats.CurrentQueueLength}");
-        }
-
-        return builder.ToString();
-    }
     
     void Update()
     {
-        foreach ((var statistics, var ui) in _statistics)
+        foreach ((var _, var ui) in _statistics)
         {
-            ui.text.text = GetStatistics(statistics);
+            ui.text.text = ui.GetText();
 
             if (!ui.isLocked)
             {
@@ -77,47 +86,34 @@ public class UIBase : MonoBehaviour
     {
         SetTime(0f);
         SetSpeed(0f);
-        _statistics = new Dictionary<PathSegmentStatistics, StatisticsUI>();
+        _statistics = new Dictionary<object, StatisticsUI>();
         _canvas = GetComponent<Canvas>();
     }
 
-    public void RemoveStatisticsTracking(PathSegmentStatistics statistics, bool removeIfLocked)
+    public void RemoveStatisticsTracking(object reference, bool removeIfLocked)
     {
-        if (_statistics.ContainsKey(statistics) && (removeIfLocked || !_statistics[statistics].isLocked))
+        if (_statistics.ContainsKey(reference) && (removeIfLocked || !_statistics[reference].isLocked))
         {
-            Destroy(_statistics[statistics].go);
-            _statistics.Remove(statistics);
+            Destroy(_statistics[reference].go);
+            _statistics.Remove(reference);
         }
     }
 
-    public void FlipLockStatisticTracking(PathSegmentStatistics statistics)
+    public void FlipLockStatisticTracking(object reference)
     {
-        _statistics[statistics].isLocked = !_statistics[statistics].isLocked;
+        _statistics[reference].isLocked = !_statistics[reference].isLocked;
     }
 
-    public void AddStatisticsTracking(PathSegmentStatistics statistics, Vector3 worldPoint)
+    public void AddStatisticsTracking(object reference, Vector3 worldPoint, Func<string> getStatisticsText)
     {
-        if (_statistics.ContainsKey(statistics))
+        if (_statistics.ContainsKey(reference))
         {
-            if (!_statistics[statistics].isLocked)
-                _statistics[statistics].worldPosition = worldPoint;
+            if (!_statistics[reference].isLocked)
+                _statistics[reference].worldPosition = worldPoint;
             return;
         }
 
-        var go = new GameObject(_id.ToString(), typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-        go.transform.SetParent(gameObject.transform, false);
-        var ui = new StatisticsUI(go, worldPoint);
-        var tf = ui.transform;
-        tf.pivot = new Vector2(0.5f, 0f);
-        tf.anchorMin = Vector2.zero;
-        tf.anchorMax = Vector2.zero;
-        tf.sizeDelta = new Vector2(600, 300);
-        ui.text.alignment = TextAlignmentOptions.Bottom;
-        ui.text.outlineColor = new Color32(0, 0, 0, 255);
-        ui.text.outlineWidth = 0.2f;
-        ui.text.fontSize = 22f;
-        _statistics.Add(statistics, ui);
-        _id++;
+        _statistics.Add(reference, StatisticsUI.Create(gameObject, worldPoint, getStatisticsText));
     }
 
     public void SetTime(float time)
