@@ -1793,11 +1793,11 @@ MonoBehaviour:
   - path: {fileID: 1313075350}
     node: {fileID: 1093522901}
     reversePath: 0
-    weight: 0.8
+    weight: 1
   - path: {fileID: 314289297}
     node: {fileID: 1093522901}
     reversePath: 0
-    weight: 0.2
+    weight: 0
   - path: {fileID: 530592696}
     node: {fileID: 779907993}
     reversePath: 0
@@ -2635,7 +2635,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   StartsWithOpen: 0
   OpenTime: 0.33333334
-  CloseTime: 1
+  CloseTime: 0
 --- !u!23 &1011982946
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -2939,7 +2939,7 @@ MonoBehaviour:
     node: {fileID: 734474991}
     reversePath: 1
     weight: 0.2
-  serviceRate: 25
+  serviceRate: 45
 --- !u!1 &1131205237
 GameObject:
   m_ObjectHideFlags: 0

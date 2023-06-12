@@ -53,8 +53,8 @@ namespace Assets.Scripts.PathFinding
 
             _serviceFlow = new PoissonFlow(serviceRate, time =>
             {
-                _queue.Dequeue()();
-                _statistics.Served();
+                    _queue.Dequeue()();
+                    _statistics.Served();
                 if (_queue.Count == 0)
                     _serviceFlow.Stop();
             });
@@ -83,6 +83,8 @@ namespace Assets.Scripts.PathFinding
 
         public override bool UpdateAgent(float modelTime)
         {
+           // if (_serviceFlow.IsStopped) _serviceFlow.Start(modelTime);
+
             _currentTime = modelTime;
             _serviceFlow.UpdateAgent(modelTime);
 

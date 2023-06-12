@@ -7,7 +7,7 @@ namespace Assets.Scripts
     {
         private float _rate;
         private Action<float> _onEmit;
-        private bool _isStopped = true;
+        public bool IsStopped { get; private set; } = true;
         private float _nextTime;
         private System.Random _rand = new System.Random();
 
@@ -19,24 +19,24 @@ namespace Assets.Scripts
 
         public void Start(float startTime)
         {
-            if (!_isStopped) return;
+            if (!IsStopped) return;
 
-            _isStopped = false;
+            IsStopped = false;
             _nextTime = startTime + (float)Exponential.Sample(_rand, _rate);
         }
 
         public void Stop()
         {
-            _isStopped = true;
+            IsStopped = true;
         }
 
         public bool UpdateAgent(float modelTime)
         {
-            if (_isStopped) return false;
+            if (IsStopped) return false;
 
             while (_nextTime < modelTime)
             {
-                if (_isStopped) return false;
+                if (IsStopped) return false;
                 _onEmit(_nextTime);
                 _nextTime += (float)Exponential.Sample(_rand, _rate);
             }

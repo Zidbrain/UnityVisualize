@@ -25,6 +25,8 @@ public class Pedestrian : DrawableAgent
     private Dictionary<PathSegmentDescription, PathSegmentDescription> _nextSegment;
 
     private static int s_no = 0;
+    
+    public static int PedestrianCount { get; private set; }
 
     private PedestrianPopulation _population;
 
@@ -37,6 +39,7 @@ public class Pedestrian : DrawableAgent
     {
         var pd = new GameObject($"Pedestrian {s_no}", typeof(Pedestrian));
         s_no++;
+        PedestrianCount++;
         pd.transform.SetParent(gameObject.transform);
         var ret = pd.GetComponent<Pedestrian>();
         var path = getPath(pd);
@@ -58,7 +61,7 @@ public class Pedestrian : DrawableAgent
 
     public override Matrix4x4 Matrix => Matrix4x4.Translate(Position) * Matrix4x4.Scale(new Vector3(100f, 100f, 100f));
 
-    private void Start()
+    private void Init()
     {
         _cumulativeDistanceAtEachSegment = new Dictionary<PathSegmentDescription, float>();
         _nextSegment = new Dictionary<PathSegmentDescription, PathSegmentDescription>();
@@ -86,6 +89,8 @@ public class Pedestrian : DrawableAgent
 
     public override bool UpdateAgent(float modelTime)
     {
+        if (_cumulativeDistanceAtEachSegment == null) Init();
+
         if (!_isActive) return true;
         if (_isStopped) return false;
 
@@ -105,6 +110,7 @@ public class Pedestrian : DrawableAgent
                 {
                     _isActive = false;
                     Destroy(gameObject);
+                    PedestrianCount--;
                 });
 
                 _isStopped = true;
@@ -144,16 +150,16 @@ public class Pedestrian : DrawableAgent
                 count++;
         }
 
-        if (count > 4)
-        {
-            _effectiveSpeed = Speed / 2f;
-            IsSlowed = true;
-        }
-        else
-        {
+        //if (count > 4)
+        //{
+        //    _effectiveSpeed = Speed / 2f;
+        //    IsSlowed = true;
+        //}
+        //else
+        //{
             IsSlowed = false;
             _effectiveSpeed = Speed;
-        }
+        //}
 
         return false;
     }

@@ -43,7 +43,7 @@ namespace Assets.Scripts
 
         private void AddPedestrian(Node start, Node end)
         {
-            var speed = R.Range(4, 7) / 60f * 1000f;
+            var speed = 5f / 60f * 1000f;// R.Range(4, 7) / 60f * 1000f;
             var pedestrian = Pedestrian.Create(gameObject, go => GetPath(start, end, go), speed, this);
             Agents.Add(pedestrian);
         }

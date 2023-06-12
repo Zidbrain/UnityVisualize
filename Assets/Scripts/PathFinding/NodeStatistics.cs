@@ -16,20 +16,30 @@ namespace Assets.Scripts.PathFinding
         private int _servedCount;
         private int _queueCount;
         private float _avgQueueLength;
-        private int _queueSamples;
+        private int _queueSamples = 1;
+        private bool _isBusy = false;
+        private bool _hasUpdated = false;
 
         public void Served()
         {
-            _queueCount--;
+            if (_queueCount > 0) _queueCount--;
+            else _isBusy = false;
+
             _servedCount++;
+            //_queueSamples++;
+            // _avgQueueLength = (_avgQueueLength * (_queueSamples - 1) + _queueCount) / _queueSamples;
+            _hasUpdated = true;
         }
 
         public void Queued()
         {
-            _queueCount++;
+            if (!_isBusy) _isBusy = true;
+            else
+                _queueCount++;
 
-            _queueSamples++;
-            _avgQueueLength = (_avgQueueLength * (_queueSamples - 1) + _queueCount - 1) / _queueSamples;
+            // _queueSamples++;
+            // _avgQueueLength = (_avgQueueLength * (_queueSamples - 1) + _queueCount) / _queueSamples;
+            _hasUpdated = true;
         }
 
         private void Start()
@@ -49,12 +59,19 @@ namespace Assets.Scripts.PathFinding
         private string GetStatistics()
         {
             return $"K: {_servedCount}\n" +
-                $"QLq: {(_queueCount - 1).CoerceAtMin(0)}\n" +
+                $"QLq: {_queueCount}\n" +
                 $"QLavg: {_avgQueueLength}";
         }
 
         private void Update()
         {
+            if (_hasUpdated)
+            {
+                _queueSamples++;
+                 _avgQueueLength = (_avgQueueLength * (_queueSamples - 1) + _queueCount) / _queueSamples;
+                _hasUpdated = false;
+            }
+
             var ray = Camera.main.ScreenPointToRay(Mouse.current.position.ReadValue());
             if (Physics.Raycast(ray, out var hitInfo) && hitInfo.collider == _meshCollider)
             {

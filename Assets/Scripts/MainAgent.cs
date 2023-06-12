@@ -25,6 +25,12 @@ public class MainAgent : MonoBehaviour
 
     public TextAsset defaultSchedule;
 
+    private float _sinceLastUpdate = 0f;
+    private int _frames = 0;
+    private float _cumulativeFPS = 0f;
+    private int _pedestrianSamples = 0;
+    private float _avgPedestrians = 0f;
+
     public float ModelTime { get; private set; }
     public float ModelTimeDelta { get; private set; }
 
@@ -71,21 +77,13 @@ public class MainAgent : MonoBehaviour
         _isActive = true;
     }
 
-   
-
-    // Update is called once per frame
-    void Update()
+    private void UpdateAgents()
     {
-        if (!_isActive) return;
-
-        ModelTimeDelta = Time.deltaTime * ModelSpeed;
         ModelTime += ModelTimeDelta;
-
         var toRemoveAgent = new List<Agent>();
         foreach (var agent in Agents)
         {
             if (agent.UpdateAgent(ModelTime)) toRemoveAgent.Add(agent);
-            if (agent is IDrawable drawable) drawable.Draw();
         }
         foreach (var agent in toRemoveAgent)
         {
@@ -102,8 +100,59 @@ public class MainAgent : MonoBehaviour
         {
             Jobs.Remove(job);
         }
+    }
+
+    private void Update()
+    {
+        Time.fixedDeltaTime = 1f / 60f;
+        if (Time.fixedDeltaTime * ModelSpeed > 0.1f)
+        {
+            Time.fixedDeltaTime = 0.1f / ModelSpeed;
+        }
+
+        _sinceLastUpdate += Time.unscaledDeltaTime;
+        if (_sinceLastUpdate > 1f)
+        {
+            Debug.Log($"P: {_avgPedestrians}; FPS: {_cumulativeFPS}");
+            _frames = 0;
+            _cumulativeFPS = 0;
+            _sinceLastUpdate = 0f;
+            _pedestrianSamples = 0;
+            _avgPedestrians = 0f;
+        }
+        else
+        {
+            var curFps = 1f / Time.unscaledDeltaTime;
+            _frames++;
+            _cumulativeFPS = (_cumulativeFPS * (_frames - 1) + curFps) / _frames;
+
+            _pedestrianSamples++;
+            _avgPedestrians = (_avgPedestrians * (_pedestrianSamples - 1) + Pedestrian.PedestrianCount) / _pedestrianSamples;
+        }
+
+        foreach (var agent in Agents)
+        {
+            if (agent is IDrawable drawable) drawable.Draw();
+        }
 
         uIBase.SetTime(ModelTime);
+    }
+
+    void FixedUpdate()
+    {
+        if (!_isActive) return;
+
+        var shouldBe = Time.deltaTime * ModelSpeed;
+        var prevTime = ModelTime;
+        //for (int i = 1; i < shouldBe / 0.1f; i++)
+        //{
+        //    ModelTimeDelta = 0.1f;
+        //    UpdateAgents();
+        //}
+        ModelTime = prevTime;
+        ModelTimeDelta = shouldBe;// % 0.1f;
+        UpdateAgents();
+
     }
 }
 

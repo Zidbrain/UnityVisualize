@@ -38,6 +38,7 @@ public class PathSegmentStatistics : MonoBehaviour
     private int _lastQueueLength;
 
     private bool _isSegmentBusy;
+    private bool _hasUpdated = false;
 
     private void SetLineColor()
     {
@@ -94,6 +95,7 @@ public class PathSegmentStatistics : MonoBehaviour
         _waitingTimes++;
         if (_trafficLightsWaitingTimes[ped] != 0)
             CurrentQueueLength--;
+        _hasUpdated = true;
         _trafficLightsWaitingTimes.Remove(ped);
     }
 
@@ -109,6 +111,7 @@ public class PathSegmentStatistics : MonoBehaviour
             if (delta != 0)
             {
                 CurrentQueueLength++;
+                _hasUpdated = true;
             }
         }
         ComputeWaitingTime();
@@ -151,17 +154,17 @@ public class PathSegmentStatistics : MonoBehaviour
             {
                 _isSegmentBusy = true;
                 break;
-            }    
+            }
         }
         SetLineColor();
 
         if (_isSegmentBusy) _busyTime += mainAgent.ModelTimeDelta;
         else _freeTime += mainAgent.ModelTimeDelta;
 
-        if (CurrentQueueLength > 0 && CurrentQueueLength != _lastQueueLength)
+        if (_hasUpdated)
         {
+            _hasUpdated = false;
             _queueLengthSamples++;
-            _lastQueueLength = CurrentQueueLength;
             TrafficLightQueueLength = ((_queueLengthSamples - 1) * TrafficLightQueueLength + CurrentQueueLength) / _queueLengthSamples;
         }
 
